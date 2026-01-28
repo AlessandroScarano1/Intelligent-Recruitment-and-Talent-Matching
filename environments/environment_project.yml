@@ -1,0 +1,86 @@
+name: talent_matching_linux
+channels:
+  - pytorch
+  - nvidia
+  - conda-forge
+  - defaults
+dependencies:
+  - python=3.10
+
+  # Data processing
+  - numpy
+  - pandas
+  - polars
+  - pyarrow
+  - duckdb
+  - scikit-learn  # Aggiunto da new_training_env
+  - scipy         # Aggiunto da new_training_env
+  - matplotlib    # Aggiunto da new_training_env
+  - pillow        # Aggiunto da new_training_env
+
+  # GPU support
+  - pytorch
+  - pytorch-cuda=12.4
+  - torchvision
+  - torchaudio
+
+  # Vector search
+  - faiss-gpu     # Mantenuta versione GPU (sovrascrive faiss-cpu)
+
+  # Big data
+  - pyspark=3.5
+  - openjdk=11    # Required for Spark
+
+  # NLP
+  - spacy=3.7
+
+  # Jupyter
+  - jupyter
+  - ipykernel
+  - ipywidgets>=8.0
+
+  # Utilities
+  - tqdm
+  - unidecode
+  - requests
+  - python-dotenv
+  - pyyaml        # Aggiunto da new_training_env
+
+  # Pip packages (not available in conda or specific versions)
+  - pip
+  - pip:
+      # ML/NLP
+      - sentence-transformers>=2.2
+      - transformers>=4.30
+      - accelerate
+      - datasets
+      - gliner
+      - huggingface-hub # Aggiunto da new_training_env
+      - onnxruntime     # Aggiunto da new_training_env
+
+      # Kafka
+      - confluent-kafka>=2.0
+
+      # Document parsing
+      - unstructured[all-docs]
+      - python-docx
+      - pypdf
+      - pdfplumber      # Aggiunto da new_training_env
+      - pymupdf         # Aggiunto da new_training_env (ex fitz)
+
+      # File monitoring
+      - watchdog>=3.0
+
+      # Experiment tracking
+      - wandb
+
+      # String matching
+      - py_stringmatching
+
+      # Validation
+      - pydantic>=2.0
+
+# Post-install commands
+# After creating environment, run:
+#   python -m spacy download en_core_web_sm
+#   python -m spacy download en_core_web_lg
