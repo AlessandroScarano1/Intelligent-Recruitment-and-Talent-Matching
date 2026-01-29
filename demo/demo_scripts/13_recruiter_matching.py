@@ -46,7 +46,7 @@ from demo.scripts.document_parser import parse_document
 MODEL_PATH = PROJECT_ROOT / "training" / "output" / "models" / "cv-job-matcher-e5"
 CV_INDEX_PATH = PROJECT_ROOT / "training" / "output" / "indexes" / "cvs_index.faiss"
 CV_DATA_PATH = PROJECT_ROOT / "ingest_cv" / "output" / "cv_query_text.parquet"
-SKILL_DICT_PATH = PROJECT_ROOT / "training" / "output" / "skill_dictionary" / "all_skills"
+SKILL_DICT_PATH = PROJECT_ROOT / "ingest_job_postings" / "output" / "skill_dictionary" / "all_skills"
 
 
 # global variables

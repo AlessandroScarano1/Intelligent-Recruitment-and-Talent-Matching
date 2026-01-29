@@ -97,7 +97,7 @@ echo ""
 echo "PHASE 3: TRAINING PIPELINE (QUICK TRAIN + FULL INDEX)"
 
 run_script "training/scripts/07_train_val_test_splits.py"
-run_script "training/scripts/08_prepare_training_data.py"
+run_script "training/scripts/08_training_data_prep.py"
 run_script "training/scripts/09_biencoder_training.py" "--quick"
 run_script "training/scripts/10_build_job_index.py"
 
