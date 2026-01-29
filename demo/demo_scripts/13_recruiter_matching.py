@@ -43,7 +43,14 @@ from demo.scripts.document_parser import parse_document
 
 
 # paths
-MODEL_PATH = PROJECT_ROOT / "training" / "output" / "models" / "cv-job-matcher-e5"
+# paths
+# check for best model first
+MODEL_PATH = PROJECT_ROOT / "training" / "output" / "models" / "cv-job-matcher-e5-best"
+if not MODEL_PATH.exists():
+    MODEL_PATH = PROJECT_ROOT / "training" / "output" / "models" / "cv-job-matcher-e5"
+    print(f"Using default model (best model not found): {MODEL_PATH}")
+else:
+    print(f"Using best model: {MODEL_PATH}")
 CV_INDEX_PATH = PROJECT_ROOT / "training" / "output" / "indexes" / "cvs_index.faiss"
 CV_DATA_PATH = PROJECT_ROOT / "ingest_cv" / "output" / "cv_query_text.parquet"
 SKILL_DICT_PATH = PROJECT_ROOT / "ingest_job_postings" / "output" / "skill_dictionary" / "all_skills"

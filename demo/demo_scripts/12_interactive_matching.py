@@ -40,7 +40,14 @@ from demo.scripts.document_parser import parse_document
 
 
 # paths
-MODEL_PATH = PROJECT_ROOT / "training" / "output" / "models" / "cv-job-matcher-e5"
+# paths
+# check for best model first
+MODEL_PATH = PROJECT_ROOT / "training" / "output" / "models" / "cv-job-matcher-e5-best"
+if not MODEL_PATH.exists():
+    MODEL_PATH = PROJECT_ROOT / "training" / "output" / "models" / "cv-job-matcher-e5"
+    print(f"Using default model (best model not found): {MODEL_PATH}")
+else:
+    print(f"Using best model: {MODEL_PATH}")
 INDEX_PATH = PROJECT_ROOT / "training" / "output" / "indexes" / "jobs_full_index.faiss"
 IDS_PATH = PROJECT_ROOT / "training" / "output" / "indexes" / "jobs_full_ids.npy"
 JOBS_PATH = PROJECT_ROOT / "ingest_job_postings" / "output" / "unified_job_postings" / "unified_jobs.parquet"
