@@ -193,6 +193,7 @@ args = SentenceTransformerTrainingArguments(
     # logging
     logging_steps=10,
     run_name="cv-job-e5-mnr-matryoshka",  # W&B run name
+    report_to="wandb",
 
     # Early stopping via Trainer
     greater_is_better=False,  # Lower loss is better
@@ -207,7 +208,7 @@ print(f" learning rate: {args.learning_rate}")
 # initialize W&B
 # will prompt for login if WANDB_API_KEY not set
 wandb.init(
-    project="talent-matching",
+    project="Intelligent-Recruitment-and-Talent-Matching",
     name="cv-job-e5-mnr-matryoshka",
     config={
         "model": "intfloat/e5-base-v2",
@@ -336,7 +337,7 @@ for lr in LEARNING_RATES:
         
         # init wandb for this run
         wandb.init(
-            project="talent-matching-sweep",
+            project="Intelligent-Recruitment-and-Talent-Matching",
             name=run_name,
             config={"learning_rate": lr, "warmup_ratio": warmup, "epochs": SWEEP_EPOCHS},
             reinit=True
