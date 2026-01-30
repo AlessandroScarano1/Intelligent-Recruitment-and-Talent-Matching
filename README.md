@@ -174,7 +174,6 @@ python demo/demo_scripts/11_retrieval_demo.py
 4. **Matryoshka Learning**: Kusupati et al. (2022) - "Matryoshka Representation Learning" (NeurIPS)
 5. **FAISS**: Johnson et al. (2019) - "Billion-scale similarity search with GPUs"
 
-See `docs/` for full citation list.
 
 ---
 
