@@ -8,7 +8,7 @@ dependencies:
   - python=3.10
 
   # Data processing
-  - numpy<2
+  - numpy
   - pandas
   - polars
   - pyarrow
@@ -30,9 +30,6 @@ dependencies:
   # Big data
   - pyspark=3.5
   - openjdk=11    # Required for Spark
-
-  # NLP
-  - spacy=3.7
 
   # Jupyter
   - jupyter
@@ -56,6 +53,7 @@ dependencies:
       - datasets
       - gliner
       - huggingface-hub # Aggiunto da new_training_env
+      - spacy==3.7
       - onnxruntime     # Aggiunto da new_training_env
 
       # Kafka

@@ -7,7 +7,7 @@ dependencies:
   - python=3.10
 
   # Data processing
-  - numpy>=2.0
+  - numpy
   - pandas
   - polars
   - pyarrow
