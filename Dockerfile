@@ -26,8 +26,10 @@ RUN useradd -m -s /bin/bash developer && \
 USER developer
 WORKDIR /home/developer
 
-# Copy environment file
-COPY --chown=developer:developer environments/environment_project.yml /home/developer/environment.yml
+# Copy environment file (configurable via build arg for macOS support)
+ARG ENV_FILE=environments/environment_project.yml
+ARG ENV_NAME=talent_matching_linux
+COPY --chown=developer:developer ${ENV_FILE} /home/developer/environment.yml
 
 # Accept Conda Terms of Service
 RUN conda tos accept --override-channels --channel https://repo.anaconda.com/pkgs/main && \
@@ -38,11 +40,11 @@ RUN conda env create -f environment.yml && \
     conda clean -afy
 
 # Download spaCy models
-RUN /opt/conda/envs/talent_matching_linux/bin/python -m spacy download en_core_web_sm && \
-    /opt/conda/envs/talent_matching_linux/bin/python -m spacy download en_core_web_lg
+RUN /opt/conda/envs/${ENV_NAME}/bin/python -m spacy download en_core_web_sm && \
+    /opt/conda/envs/${ENV_NAME}/bin/python -m spacy download en_core_web_lg
 
 # Initialize conda and activate environment by default
-RUN conda init bash && echo "conda activate talent_matching_linux" >> ~/.bashrc
+RUN conda init bash && echo "conda activate ${ENV_NAME}" >> ~/.bashrc
 
 WORKDIR /home/developer/project
 CMD ["bash"]

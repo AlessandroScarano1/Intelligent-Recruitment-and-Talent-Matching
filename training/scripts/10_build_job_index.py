@@ -48,10 +48,12 @@ import torch
 import gc
 import time
 from sentence_transformers import SentenceTransformer
+from demo.scripts.matching_utils import get_device
 
-# check GPU
-print(f"\nCUDA available: {torch.cuda.is_available()}")
-if torch.cuda.is_available():
+# check GPU/device
+device = get_device()
+print(f"\nUsing device: {device}")
+if device == 'cuda':
     print(f"GPU: {torch.cuda.get_device_name(0)}")
     print(f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
 
@@ -68,7 +70,7 @@ print(f"Loading bi-encoder from: {MODEL_PATH}")
 # load with fp16 for faster inference
 bi_encoder = SentenceTransformer(
     MODEL_PATH,
-    device='cuda' if torch.cuda.is_available() else 'cpu',
+    device=device,
     model_kwargs={"torch_dtype": torch.float16}  # fp16 precision
 )
 print(f"Embedding dimension: {bi_encoder.get_sentence_embedding_dimension()}")

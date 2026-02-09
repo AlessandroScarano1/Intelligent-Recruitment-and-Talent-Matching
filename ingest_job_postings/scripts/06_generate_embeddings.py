@@ -37,9 +37,10 @@ else:
     SAMPLE_SIZE = None
     print('FULL MODE: processing all jobs')
 
+from demo.scripts.matching_utils import get_device
+
 print('imports loaded')
 print(f'pytorch: {torch.__version__}')
-print(f'cuda available: {torch.cuda.is_available()}')
 print(f'project root: {PROJECT_ROOT}')
 
 # %%
@@ -51,16 +52,13 @@ spark = SparkSession.builder \
 print(f'spark started: {spark.version}')
 
 # %%
-if torch.cuda.is_available():
-    device = torch.device('cuda')
+device = torch.device(get_device())
+print(f'using device: {device}')
+if device.type == 'cuda':
     gpu_name = torch.cuda.get_device_name(0)
     gpu_memory = torch.cuda.get_device_properties(0).total_memory / 1e9
     print(f'GPU: {gpu_name}')
     print(f'total VRAM: {gpu_memory:.1f} GB')
-    print(f'using GPU for encoding')
-else:
-    device = torch.device('cpu')
-    print('!!! GPU not available, using CPU')
 
 # %%
 print('loading jobs with Spark')

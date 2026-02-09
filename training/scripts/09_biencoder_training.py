@@ -20,11 +20,14 @@ parser.add_argument('--lr', type=float, default=5e-05,
                     help='Learning rate for quick mode (default: 5e-05)')
 parser.add_argument('--warmup', type=float, default=0.05,
                     help='Warmup ratio for quick mode (default: 0.05)')
+parser.add_argument('--wandb', action='store_true',
+                    help='Enable Weights & Biases logging (disabled by default)')
 args = parser.parse_args()
 
 QUICK_MODE = args.quick
 BEST_LR = args.lr
 BEST_WARMUP = args.warmup
+USE_WANDB = args.wandb
 
 if QUICK_MODE:
     print(f'QUICK_MODE enabled: single run with lr={BEST_LR}, warmup={BEST_WARMUP}')
@@ -65,11 +68,12 @@ if os.path.exists(best_dir):
     print("Deleted")
 
 # Optional: clean local wandb logs (your runs are still saved online)
-wandb_dir = "wandb"
-if os.path.exists(wandb_dir):
-    print(f"\nDeleting local W&B logs at: {wandb_dir}")
-    shutil.rmtree(wandb_dir)
-    print("Deleted (online logs preserved at wandb.ai)")
+if USE_WANDB:
+    wandb_dir = "wandb"
+    if os.path.exists(wandb_dir):
+        print(f"\nDeleting local W&B logs at: {wandb_dir}")
+        shutil.rmtree(wandb_dir)
+        print("Deleted (online logs preserved at wandb.ai)")
 
 print("\n✓ Ready for fresh sweep")
 
@@ -98,28 +102,36 @@ from nbconvert import export
 import pandas as pd
 import numpy as np
 import torch
-import wandb
 import gc
+if USE_WANDB:
+    import wandb
 
 from sentence_transformers import SentenceTransformer, SentenceTransformerTrainer
 from sentence_transformers.losses import MultipleNegativesRankingLoss, MatryoshkaLoss
 from sentence_transformers.training_args import SentenceTransformerTrainingArguments
 from transformers import EarlyStoppingCallback
 from datasets import Dataset
-    
-#CHECK: W&B API Key
-if 'WANDB_API_KEY' not in os.environ:
-    print("WARNING: WANDB_API_KEY not set in environment")
-    print("Either set it with: export WANDB_API_KEY=your_key_here")
-    print("Or run: wandb login")
-else:
-    print("WANDB_API_KEY found in environment")
+from demo.scripts.matching_utils import get_device
 
-# Check GPU
-print(f"\nCUDA available: {torch.cuda.is_available()}")
-if torch.cuda.is_available():
+#CHECK: W&B API Key
+if USE_WANDB:
+    if 'WANDB_API_KEY' not in os.environ:
+        print("WARNING: WANDB_API_KEY not set in environment")
+        print("Either set it with: export WANDB_API_KEY=your_key_here")
+        print("Or run: wandb login")
+    else:
+        print("WANDB_API_KEY found in environment")
+else:
+    print("W&B logging disabled (use --wandb to enable)")
+
+# Check device
+DEVICE = get_device()
+print(f"\nUsing device: {DEVICE}")
+if DEVICE == 'cuda':
     print(f"GPU: {torch.cuda.get_device_name(0)}")
     print(f"VRAM: {torch.cuda.get_device_properties(0).total_memory / 1e9:.1f} GB")
+elif DEVICE == 'mps':
+    print("Apple Silicon GPU (MPS)")
 else:
     print("!!!No GPU available, training will be slow")
 
@@ -181,7 +193,7 @@ args = SentenceTransformerTrainingArguments(
         per_device_train_batch_size=64,  # should fit high-end GPU (24GB VRAM) with fp16
     learning_rate=2e-5,
     warmup_ratio=0.1,  # 10% warmup to avoid forgetting
-    fp16=True,  # mixed precision for speed
+    fp16=(DEVICE == 'cuda'),  # mixed precision only on CUDA
 
     # evaluation
     eval_strategy="epoch",
@@ -192,8 +204,8 @@ args = SentenceTransformerTrainingArguments(
 
     # logging
     logging_steps=10,
-    run_name="cv-job-e5-mnr-matryoshka",  # W&B run name
-    report_to="wandb",
+    run_name="cv-job-e5-mnr-matryoshka",
+    report_to="wandb" if USE_WANDB else "none",
 
     # Early stopping via Trainer
     greater_is_better=False,  # Lower loss is better
@@ -205,23 +217,23 @@ print(f" batch size: {args.per_device_train_batch_size}")
 print(f" learning rate: {args.learning_rate}")
 
 # %%
-# initialize W&B
-# will prompt for login if WANDB_API_KEY not set
-wandb.init(
-    project="Intelligent-Recruitment-and-Talent-Matching",
-    name="cv-job-e5-mnr-matryoshka",
-    config={
-        "model": "intfloat/e5-base-v2",
-        "loss": "MNR+Matryoshka",
-        "matryoshka_dims": [768, 512, 256, 128, 64],
-        "batch_size": 64,
-        "learning_rate": 2e-5,
-        "epochs": 10,
-        "train_samples": len(train_df),
-        "val_samples": len(val_df)
-    }
-)
-print(f"W&B initialized: {wandb.run.url}")
+# initialize W&B if enabled
+if USE_WANDB:
+    wandb.init(
+        project="Intelligent-Recruitment-and-Talent-Matching",
+        name="cv-job-e5-mnr-matryoshka",
+        config={
+            "model": "intfloat/e5-base-v2",
+            "loss": "MNR+Matryoshka",
+            "matryoshka_dims": [768, 512, 256, 128, 64],
+            "batch_size": 64,
+            "learning_rate": 2e-5,
+            "epochs": 10,
+            "train_samples": len(train_df),
+            "val_samples": len(val_df)
+        }
+    )
+    print(f"W&B initialized: {wandb.run.url}")
 
 # %%
 # early stopping callback, stops if val loss doesn't improve for 3 epochs
@@ -260,8 +272,9 @@ for f in os.listdir(os.path.join(PROJECT_ROOT, 'training', 'output', 'models', '
     print(f"  {f}: {size:.1f} MB")
 
 # finish W&B run
-wandb.finish()
-print("W&B run finished")
+if USE_WANDB:
+    wandb.finish()
+    print("W&B run finished")
 
 # %%
 # test the trained model
@@ -315,14 +328,16 @@ except NameError:
     pass
 
 gc.collect()
-torch.cuda.empty_cache()
+if DEVICE == 'cuda':
+    torch.cuda.empty_cache()
 
 for lr in LEARNING_RATES:
     for warmup in WARMUP_RATIOS:
         # cleanup before each run
         gc.collect()
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+        if DEVICE == 'cuda':
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
         
         # Log memory status
         if torch.cuda.is_available():
@@ -335,13 +350,14 @@ for lr in LEARNING_RATES:
         
         print(f"RUN {run_num}/{total_runs}: lr={lr}, warmup={warmup}")
         
-        # init wandb for this run
-        wandb.init(
-            project="Intelligent-Recruitment-and-Talent-Matching",
-            name=run_name,
-            config={"learning_rate": lr, "warmup_ratio": warmup, "epochs": SWEEP_EPOCHS},
-            reinit=True
-        )
+        # init wandb for this run if enabled
+        if USE_WANDB:
+            wandb.init(
+                project="Intelligent-Recruitment-and-Talent-Matching",
+                name=run_name,
+                config={"learning_rate": lr, "warmup_ratio": warmup, "epochs": SWEEP_EPOCHS},
+                reinit=True
+            )
         
         # load fresh model
         sweep_model = SentenceTransformer("intfloat/e5-base-v2")
@@ -359,7 +375,7 @@ for lr in LEARNING_RATES:
             per_device_train_batch_size=64,
             learning_rate=lr,
             warmup_ratio=warmup,
-            fp16=True,
+            fp16=(DEVICE == 'cuda'),
             eval_strategy="epoch",
             save_strategy="epoch",
             save_total_limit=1,
@@ -367,7 +383,7 @@ for lr in LEARNING_RATES:
             metric_for_best_model="eval_loss",
             greater_is_better=False,
             logging_steps=20,
-            report_to="wandb",
+            report_to="wandb" if USE_WANDB else "none",
         )
         
         # early stopping
@@ -406,7 +422,8 @@ for lr in LEARNING_RATES:
         sweep_model.save(output_dir)
         
         # finish wandb run
-        wandb.finish()
+        if USE_WANDB:
+            wandb.finish()
         
         # aggressive cleanup after each run
         # must delete in correct order: trainer first (holds references), then model
@@ -417,9 +434,10 @@ for lr in LEARNING_RATES:
         # force Python garbage collection
         gc.collect()
         
-        # Clear CUDA cache
-        torch.cuda.empty_cache()
-        torch.cuda.synchronize()
+        # Clear GPU cache
+        if DEVICE == 'cuda':
+            torch.cuda.empty_cache()
+            torch.cuda.synchronize()
         
         run_num += 1
 

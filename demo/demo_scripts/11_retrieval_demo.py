@@ -20,10 +20,12 @@ import faiss
 import torch
 from sentence_transformers import SentenceTransformer, CrossEncoder
 from tqdm import tqdm
+from demo.scripts.matching_utils import get_device
 
 # check GPU
-print(f"\nCUDA available: {torch.cuda.is_available()}")
-if torch.cuda.is_available():
+device = get_device()
+print(f"\nUsing device: {device}")
+if device == 'cuda':
     print(f"GPU: {torch.cuda.get_device_name(0)}")
 
 # %%
@@ -41,13 +43,12 @@ print(f"Using model from: {MODEL_PATH}")
 # load with fp16 for faster inference
 bi_encoder = SentenceTransformer(
     MODEL_PATH,
-    device='cuda' if torch.cuda.is_available() else 'cpu',
+    device=device,
     model_kwargs={"torch_dtype": torch.float16}  # fp16 precision
 )
 print(f"Bi-encoder loaded, embedding dim: {bi_encoder.get_sentence_embedding_dimension()}")
 
 # load cross-encoder for reranking
-device = "cuda" if torch.cuda.is_available() else "cpu"
 cross_encoder = CrossEncoder("cross-encoder/ms-marco-MiniLM-L12-v2", device=device)
 print(f"Cross-encoder loaded on {device}")
 

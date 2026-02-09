@@ -1,7 +1,6 @@
-name: talent_matching_linux
+name: talent_matching_nocuda
 channels:
   - pytorch
-  - nvidia
   - conda-forge
   - defaults
 dependencies:
@@ -13,19 +12,18 @@ dependencies:
   - polars
   - pyarrow
   - duckdb
-  - scikit-learn  # Aggiunto da new_training_env
-  - scipy         # Aggiunto da new_training_env
-  - matplotlib    # Aggiunto da new_training_env
-  - pillow        # Aggiunto da new_training_env
+  - scikit-learn
+  - scipy
+  - matplotlib
+  - pillow
 
-  # GPU support
+  # PyTorch for Apple Silicon (MPS support)
   - pytorch
-  - pytorch-cuda=12.4
   - torchvision
   - torchaudio
 
-  # Vector search
-  - faiss-gpu     # Mantenuta versione GPU (sovrascrive faiss-cpu)
+  # Vector search (CPU only on macOS)
+  - faiss-cpu
 
   # Big data
   - pyspark=3.5
@@ -44,7 +42,7 @@ dependencies:
   - unidecode
   - requests
   - python-dotenv
-  - pyyaml        # Aggiunto da new_training_env
+  - pyyaml
 
   # Pip packages (not available in conda or specific versions)
   - pip
@@ -55,8 +53,8 @@ dependencies:
       - accelerate
       - datasets
       - gliner
-      - huggingface-hub # Aggiunto da new_training_env
-      - onnxruntime     # Aggiunto da new_training_env
+      - huggingface-hub
+      - onnxruntime
 
       # Kafka
       - confluent-kafka>=2.0
@@ -65,8 +63,8 @@ dependencies:
       - unstructured[all-docs]
       - python-docx
       - pypdf
-      - pdfplumber      # Aggiunto da new_training_env
-      - pymupdf         # Aggiunto da new_training_env (ex fitz)
+      - pdfplumber
+      - pymupdf
 
       # File monitoring
       - watchdog>=3.0

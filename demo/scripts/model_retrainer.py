@@ -181,7 +181,7 @@ def retrain_from_feedback(
         per_device_train_batch_size=batch_size,
         learning_rate=learning_rate,
         warmup_ratio=0.1,
-        fp16=torch.cuda.is_available(),
+        fp16=(get_device() == 'cuda'),
         logging_steps=5,
         save_strategy="epoch",
         save_total_limit=1,
