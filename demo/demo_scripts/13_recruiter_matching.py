@@ -33,16 +33,21 @@ import numpy as np
 import pandas as pd
 import faiss
 import torch
-import spacy
-from spacy.matcher import PhraseMatcher
 from sentence_transformers import SentenceTransformer, CrossEncoder
 
 # our modules
 from demo.scripts.feedback_storage import init_db, log_action, get_action_count
 from demo.scripts.document_parser import parse_document
+from demo.scripts.matching_utils import (
+    extract_job_fields as extract_fields_shared,
+    build_job_embedding_string as build_emb_string_shared,
+    prepare_for_biencoder, strip_prefixes,
+    logistic_percentage, get_skill_matcher,
+    extract_skills_from_text, get_device
+)
+from demo.scripts.skill_tracker import track_skills_from_feedback
 
 
-# paths
 # paths
 # check for best model first
 MODEL_PATH = PROJECT_ROOT / "training" / "output" / "models" / "cv-job-matcher-e5-best"
@@ -53,7 +58,6 @@ else:
     print(f"Using best model: {MODEL_PATH}")
 CV_INDEX_PATH = PROJECT_ROOT / "training" / "output" / "indexes" / "cvs_index.faiss"
 CV_DATA_PATH = PROJECT_ROOT / "ingest_cv" / "output" / "cv_query_text.parquet"
-SKILL_DICT_PATH = PROJECT_ROOT / "ingest_job_postings" / "output" / "skill_dictionary" / "all_skills"
 
 
 # global variables
@@ -71,8 +75,7 @@ def check_files():
     files = [
         (MODEL_PATH, "Bi-encoder model"),
         (CV_INDEX_PATH, "CV index"),
-        (CV_DATA_PATH, "CV data"),
-        (SKILL_DICT_PATH, "Skill dictionary")
+        (CV_DATA_PATH, "CV data")
     ]
 
     all_ok = True
@@ -94,7 +97,7 @@ def load_models():
 
     # bi-encoder
     print("\nLoading bi-encoder")
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = get_device()
     bi_encoder = SentenceTransformer(
         str(MODEL_PATH),
         device=device,
@@ -119,184 +122,20 @@ def load_models():
     cvs_df = pd.read_parquet(str(CV_DATA_PATH))
     print(f"  CV data loaded: {len(cvs_df):,} rows")
 
-    # skill dictionary and matcher
-    print("Loading skill dictionary")
-    skills_df = pd.read_parquet(str(SKILL_DICT_PATH))
-    skill_col = skills_df.columns[0]
-    skill_set = set(skills_df[skill_col].str.lower().str.strip().tolist())
-    print(f"  Loaded {len(skill_set):,} skills")
-
-    print("Building PhraseMatcher")
-    nlp = spacy.blank('en')
-    matcher = PhraseMatcher(nlp.vocab, attr='LOWER')
-
-    skill_list = list(skill_set)
-    batch_size = 10000
-    for i in range(0, len(skill_list), batch_size):
-        batch = skill_list[i:i+batch_size]
-        patterns = [nlp.make_doc(skill) for skill in batch]
-        matcher.add(f"SKILLS_{i}", patterns)
-    print(f"  PhraseMatcher ready")
+    # skill matcher (shared with app.py)
+    print("Loading skill matcher (shared)")
+    nlp, matcher, skill_set = get_skill_matcher()
+    print(f"  Skill matcher ready: {len(skill_set):,} skills (filtered)")
 
     # feedback db
     init_db()
     print(f"  Feedback actions logged: {get_action_count()}")
 
 
-def extract_skills_from_job(job_text):
-    """extract skills from job posting using PhraseMatcher"""
-    if not job_text or not str(job_text).strip():
-        return []
-
-    doc = nlp(job_text.lower())
-    matches = matcher(doc)
-
-    skills = []
-    for match_id, start, end in matches:
-        skill = doc[start:end].text
-        if len(skill) > 1:
-            skills.append(skill)
-
-    seen = set()
-    unique_skills = []
-    for s in skills:
-        s_lower = s.lower()
-        if s_lower not in seen:
-            seen.add(s_lower)
-            unique_skills.append(s)
-
-    return unique_skills
-
-
-def extract_job_fields(job_text):
-    """extract structured fields from job posting"""
-    fields = {
-        'title': '',
-        'company': '',
-        'location': '',
-        'skills': [],
-        'experience_years': '',
-        'salary_min': None,
-        'salary_max': None,
-        'remote_status': '',
-        'seniority': 'mid'
-    }
-
-    if not job_text:
-        return fields
-
-    fields['skills'] = extract_skills_from_job(job_text)
-
-    # title
-    lines = job_text.strip().split('\n')
-    for line in lines:
-        line = line.strip()
-        if line and not line.lower().startswith(('company', 'location', 'salary', 'type')):
-            fields['title'] = line[:100]
-            break
-
-    # company
-    company_match = re.search(r'company[:\s]+([^\n]+)', job_text, re.I)
-    if company_match:
-        fields['company'] = company_match.group(1).strip()[:100]
-
-    # location
-    location_match = re.search(r'location[:\s]+([^\n]+)', job_text, re.I)
-    if location_match:
-        fields['location'] = location_match.group(1).strip()[:100]
-
-    # salary
-    salary_match = re.search(r'\$?([\d,]+)\s*[-\u2013]\s*\$?([\d,]+)', job_text)
-    if salary_match:
-        try:
-            fields['salary_min'] = int(salary_match.group(1).replace(',', ''))
-            fields['salary_max'] = int(salary_match.group(2).replace(',', ''))
-        except ValueError:
-            pass
-
-    # experience
-    exp_match = re.search(r'(\d+)\+?\s*years?', job_text, re.I)
-    if exp_match:
-        fields['experience_years'] = exp_match.group(1) + '+'
-
-    # remote
-    if re.search(r'\bremote\b', job_text, re.I):
-        fields['remote_status'] = 'remote'
-    elif re.search(r'\bhybrid\b', job_text, re.I):
-        fields['remote_status'] = 'hybrid'
-    else:
-        fields['remote_status'] = 'onsite'
-
-    # seniority
-    title_lower = fields['title'].lower()
-    if any(w in title_lower for w in ['intern', 'internship', 'trainee']):
-        fields['seniority'] = 'intern'
-    elif any(w in title_lower for w in ['principal', 'staff', 'distinguished']):
-        fields['seniority'] = 'principal'
-    elif any(w in title_lower for w in ['lead', 'head of', 'director', 'vp', 'chief']):
-        fields['seniority'] = 'lead'
-    elif any(w in title_lower for w in ['senior', 'sr.', 'sr ']):
-        fields['seniority'] = 'senior'
-    elif any(w in title_lower for w in ['junior', 'jr.', 'jr ', 'entry']):
-        fields['seniority'] = 'junior'
-    else:
-        fields['seniority'] = 'mid'
-
-    return fields
-
-
-def build_job_embedding_string(fields):
-    """build embedding string from extracted fields"""
-    parts = []
-
-    title = fields.get('title', 'Unknown Position')
-    company = fields.get('company', 'a company')
-    location = fields.get('location', '')
-
-    role_part = f"Role of {title} at {company}"
-    if location:
-        role_part += f" in {location}"
-    parts.append(role_part + ".")
-
-    skills = fields.get('skills', [])
-    if skills:
-        skills_str = ', '.join(skills[:10])
-        parts.append(f"Required skills: {skills_str}.")
-
-    seniority = fields.get('seniority', 'mid')
-    seniority_map = {
-        'intern': 'Intern level, entry position',
-        'junior': 'Junior level, 0-2 years experience',
-        'mid': 'Mid-level, 3-5 years experience',
-        'senior': 'Senior level, 5+ years experience',
-        'lead': 'Lead level, 7+ years experience with leadership',
-        'principal': 'Principal level, expert with technical leadership'
-    }
-    level_desc = seniority_map.get(seniority, seniority)
-    parts.append(f"Experience level: {level_desc}.")
-
-    salary_min = fields.get('salary_min')
-    salary_max = fields.get('salary_max')
-    if salary_min and salary_max:
-        parts.append(f"Salary range: ${salary_min:,} to ${salary_max:,}.")
-
-    remote = fields.get('remote_status', '')
-    if remote:
-        remote_map = {
-            'remote': 'Remote work available',
-            'hybrid': 'Hybrid work, partially remote',
-            'onsite': 'Onsite work'
-        }
-        work_type = remote_map.get(remote, remote)
-        parts.append(f"Work type: {work_type}.")
-
-    return "passage: " + ' '.join(parts)
-
-
 def find_matching_cvs(job_text, top_k=50):
     """find top-k matching CVs using bi-encoder"""
-    fields = extract_job_fields(job_text)
-    embedding_text = build_job_embedding_string(fields)
+    fields = extract_fields_shared(job_text)
+    embedding_text = build_emb_string_shared(fields)
 
     job_embedding = bi_encoder.encode(
         [embedding_text],
@@ -326,25 +165,38 @@ def rerank_cvs(job_text, matches, top_k=30):
     if not matches:
         return []
 
-    clean_job = job_text.replace("passage: ", "").replace("query: ", "")
+    clean_job = strip_prefixes(job_text)
 
     pairs = []
     for m in matches:
-        clean_cv = m['text'].replace("query: ", "").replace("Query: ", "")
+        clean_cv = strip_prefixes(m['text'])
         pairs.append((clean_job, clean_cv))
 
     cross_scores = cross_encoder.predict(pairs, batch_size=50)
 
     for m, score in zip(matches, cross_scores):
         m['cross_score'] = float(score)
+        m['match_pct'] = logistic_percentage(score)
 
     reranked = sorted(matches, key=lambda x: x['cross_score'], reverse=True)
+
+    # deduplicate by text content - some CVs have identical text with different IDs
+    seen_texts = set()
+    deduped = []
+    for m in reranked:
+        text_key = m['text'].strip()
+        if text_key not in seen_texts:
+            seen_texts.add(text_key)
+            deduped.append(m)
+    reranked = deduped
+
     return reranked[:top_k]
 
 
 def display_cv_match(match, idx, job_skills):
     """display a single CV match in terminal"""
     score = match['cross_score']
+    match_pct = match.get('match_pct', logistic_percentage(score))
 
     # score indicator
     if score > 5:
@@ -354,10 +206,20 @@ def display_cv_match(match, idx, job_skills):
     else:
         indicator = "[WEAK] "
 
+    # extract role from CV text for display
+    cv_role = match['cv_id']
+    cv_preview = match['text'].replace('query: ', '').replace('Query: ', '')
+    if 'I am a ' in cv_preview:
+        try:
+            role_part = cv_preview.split('I am a ')[1].split(' with ')[0]
+            cv_role = f"{role_part} ({match['cv_id']})"
+        except Exception:
+            pass
+
     print(f"\n{'='*60}")
-    print(f"#{idx+1} {indicator} CV: {match['cv_id']}")
+    print(f"#{idx+1} {indicator} {cv_role}")
     print(f"{'='*60}")
-    print(f"Score: {score:.2f} (bi-encoder: {match['bi_score']:.4f})")
+    print(f"Match: {match_pct}% (score: {score:.2f})")
 
     # matching skills
     cv_text_lower = match['text'].lower()
@@ -648,11 +510,28 @@ def main():
         cross_time = time.time() - start
         print(f"  Reranked to top {len(matches)} in {cross_time*1000:.0f}ms")
 
+        # track new skills from job posting
+        try:
+            track_skills_from_feedback(job_text=job_text)
+        except Exception:
+            pass  # dont crash on skill tracking errors
+
         # review with pagination
         continue_session = review_cvs(matches, session_id, job_text, job_id, fields['skills'], page_size=10)
 
         if not continue_session:
             break
+
+        # ask if want to save for training
+        save = input("\nSave this job posting for future training? (y/n): ").strip().lower()
+        if save == 'y':
+            try:
+                save_path = PROJECT_ROOT / "demo" / "data" / "incoming" / "job" / f"{uuid.uuid4()}.txt"
+                save_path.parent.mkdir(parents=True, exist_ok=True)
+                save_path.write_text(job_text)
+                print(f"  Saved to {save_path.name}")
+            except Exception as e:
+                print(f"  Could not save: {e}")
 
         again = input("\nSearch with another job posting? (y/n): ").strip().lower()
         if again != 'y':

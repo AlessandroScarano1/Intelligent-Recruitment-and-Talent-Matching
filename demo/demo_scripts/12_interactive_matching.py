@@ -37,6 +37,12 @@ from sentence_transformers import SentenceTransformer, CrossEncoder
 # our modules
 from demo.scripts.feedback_storage import init_db, log_action, get_action_count
 from demo.scripts.document_parser import parse_document
+from demo.scripts.matching_utils import (
+    reformat_cv_for_matching, prepare_for_biencoder,
+    strip_prefixes, logistic_percentage, parse_cv_summary,
+    extract_skills_from_text, get_device
+)
+from demo.scripts.skill_tracker import track_skills_from_feedback
 
 
 # paths
@@ -81,7 +87,7 @@ def load_models():
 
     # bi-encoder
     print("\nLoading bi-encoder")
-    device = 'cuda' if torch.cuda.is_available() else 'cpu'
+    device = get_device()
     bi_encoder = SentenceTransformer(
         str(MODEL_PATH),
         device=device,
@@ -104,7 +110,11 @@ def load_models():
     print("Loading job data")
     job_ids = np.load(str(IDS_PATH), allow_pickle=True)
     jobs_df = pd.read_parquet(str(JOBS_PATH))
-    job_id_to_row = {jid: idx for idx, jid in enumerate(jobs_df['id'])}
+    # keep first occurrence of each job ID (some IDs are duplicated)
+    job_id_to_row = {}
+    for idx, jid in enumerate(jobs_df['id']):
+        if jid not in job_id_to_row:
+            job_id_to_row[jid] = idx
     print(f"  Job data loaded: {len(jobs_df):,} rows")
 
     # feedback db
@@ -114,9 +124,7 @@ def load_models():
 
 def find_matches(cv_text, top_k=50):
     """find top-k job matches using bi-encoder"""
-    prefix = "query: "
-    clean_text = cv_text.replace("query: ", "").replace("Query: ", "").replace("passage: ", "")
-    prefixed_text = prefix + clean_text
+    prefixed_text = prepare_for_biencoder(cv_text, mode='cv')
 
     query_emb = bi_encoder.encode(
         [prefixed_text],
@@ -152,25 +160,37 @@ def find_matches(cv_text, top_k=50):
 
 def rerank_matches(cv_text, matches, top_k=30):
     """rerank matches using cross-encoder"""
-    clean_query = cv_text.replace("query: ", "").replace("Query: ", "").replace("passage: ", "")
+    clean_query = strip_prefixes(cv_text)
 
     pairs = []
     for m in matches:
-        doc_text = m['text'].replace("passage: ", "")
+        doc_text = strip_prefixes(m['text'])
         pairs.append((clean_query, doc_text))
 
     cross_scores = cross_encoder.predict(pairs, batch_size=128)
 
     for m, score in zip(matches, cross_scores):
         m['cross_score'] = float(score)
+        m['match_pct'] = logistic_percentage(score)
 
     reranked = sorted(matches, key=lambda x: x['cross_score'], reverse=True)
+
+    # deduplicate jobs by ID (some IDs appear twice in dataset)
+    seen_ids = set()
+    deduped = []
+    for m in reranked:
+        if m['job_id'] not in seen_ids:
+            seen_ids.add(m['job_id'])
+            deduped.append(m)
+    reranked = deduped
+
     return reranked[:top_k]
 
 
-def display_match(match, idx):
+def display_match(match, idx, cv_skills=None):
     """display a single match in terminal"""
     score = match['cross_score']
+    match_pct = match.get('match_pct', logistic_percentage(score))
 
     # score indicator
     if score > 5:
@@ -186,7 +206,7 @@ def display_match(match, idx):
     print(f"Company:  {match['company']}")
     print(f"Location: {match['location']}")
     print(f"Level:    {match['seniority']}")
-    print(f"Score:    {score:.2f} (bi-encoder: {match['bi_score']:.4f})")
+    print(f"Match:    {match_pct}% (score: {score:.2f})")
 
     skills = match.get('skills', '')
     if skills:
@@ -195,6 +215,13 @@ def display_match(match, idx):
         else:
             skills_str = ', '.join(str(skills).split(',')[:8])
         print(f"Skills:   {skills_str}")
+
+        # matching skills between CV and job
+        if cv_skills:
+            job_skills_lower = [s.strip().lower() for s in (skills if isinstance(skills, list) else str(skills).split(','))]
+            overlap = [s for s in job_skills_lower if s in cv_skills]
+            if overlap:
+                print(f"Matching: {', '.join(overlap[:8])}")
 
     # preview
     preview = match['text'][:300].replace('passage: ', '')
@@ -279,8 +306,18 @@ engineering. Looking for Staff Engineer or Lead roles."""
         print(f"Parsing {filepath.name}")
         parsed = parse_document(filepath)
         if parsed and parsed.get('text'):
+            raw_text = parsed['text']
             print(f"Parsed: {parsed['word_count']} words")
-            return parsed['text']
+
+            # reformat for matching
+            cv_formatted = reformat_cv_for_matching(raw_text)
+
+            # extract skills
+            skills = extract_skills_from_text(cv_formatted)
+            if skills:
+                print(f"  Skills detected: {', '.join(skills[:15])}")
+
+            return cv_formatted
         else:
             print("Could not parse file. Try pasting text instead.")
             return get_cv_text()
@@ -339,6 +376,12 @@ def review_matches(matches, session_id, cv_text, cv_id, page_size=10):
     current_page = 0
     total_pages = (total + page_size - 1) // page_size
 
+    # extract CV skills once for overlap display
+    try:
+        cv_skills = [s.lower() for s in extract_skills_from_text(cv_text)]
+    except Exception:
+        cv_skills = None
+
     while True:
         start = current_page * page_size
         end = min(start + page_size, total)
@@ -352,7 +395,7 @@ def review_matches(matches, session_id, cv_text, cv_id, page_size=10):
         idx = start
         while idx < end:
             match = matches[idx]
-            display_match(match, idx)
+            display_match(match, idx, cv_skills=cv_skills)
 
             prompt = f"\nJob {idx+1}/{total} - Action (a/s/v/k/n) or p/x/f/q: "
             action = input(prompt).strip().lower()
@@ -463,8 +506,16 @@ def main():
                 print(f"\nParsing {filepath.name}")
                 parsed = parse_document(filepath)
                 if parsed and parsed.get('text'):
-                    cv_text = parsed['text']
+                    raw_text = parsed['text']
                     print(f"Parsed: {parsed['word_count']} words")
+
+                    # reformat for matching
+                    cv_text = reformat_cv_for_matching(raw_text)
+
+                    # extract skills
+                    skills = extract_skills_from_text(cv_text)
+                    if skills:
+                        print(f"  Skills detected: {', '.join(skills[:15])}")
                 else:
                     print("Could not parse file.")
                     cv_text = get_cv_text()
@@ -494,11 +545,28 @@ def main():
         cross_time = time.time() - start
         print(f"  Reranked to top {len(matches)} in {cross_time*1000:.0f}ms")
 
+        # track new skills from CV
+        try:
+            track_skills_from_feedback(cv_text=cv_text)
+        except Exception:
+            pass  # dont crash on skill tracking errors
+
         # review with pagination
         continue_session = review_matches(matches, session_id, cv_text, cv_id, page_size=10)
 
         if not continue_session:
             break
+
+        # ask if want to save for training
+        save = input("\nSave this CV for future training? (y/n): ").strip().lower()
+        if save == 'y':
+            try:
+                save_path = PROJECT_ROOT / "demo" / "data" / "incoming" / "cv" / f"{uuid.uuid4()}.txt"
+                save_path.parent.mkdir(parents=True, exist_ok=True)
+                save_path.write_text(cv_text)
+                print(f"  Saved to {save_path.name}")
+            except Exception as e:
+                print(f"  Could not save: {e}")
 
         # ask if want to search again
         again = input("\nSearch with another CV? (y/n): ").strip().lower()

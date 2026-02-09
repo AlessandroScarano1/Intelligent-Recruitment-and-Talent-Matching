@@ -21,6 +21,21 @@ from .skill_tracker import (
     approve_skill,
     get_skill_statistics
 )
+# matching logic (shared between app and scripts)
+from .matching_utils import (
+    load_skill_dictionary,
+    get_skill_matcher,
+    extract_skills_from_text,
+    is_cv_already_structured,
+    reformat_cv_for_matching,
+    extract_job_fields,
+    build_job_embedding_string,
+    prepare_for_biencoder,
+    strip_prefixes,
+    logistic_percentage,
+    parse_cv_summary,
+    get_device
+)
 
 __all__ = [
     # Feedback storage
@@ -45,5 +60,18 @@ __all__ = [
     'track_skills_from_feedback',
     'get_skill_proposals',
     'approve_skill',
-    'get_skill_statistics'
+    'get_skill_statistics',
+    # Matching utils
+    'load_skill_dictionary',
+    'get_skill_matcher',
+    'extract_skills_from_text',
+    'is_cv_already_structured',
+    'reformat_cv_for_matching',
+    'extract_job_fields',
+    'build_job_embedding_string',
+    'prepare_for_biencoder',
+    'strip_prefixes',
+    'logistic_percentage',
+    'parse_cv_summary',
+    'get_device'
 ]

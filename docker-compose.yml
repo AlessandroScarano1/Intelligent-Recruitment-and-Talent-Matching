@@ -3,7 +3,9 @@ services:
   # Use: docker compose up -d dev
   # Then: docker compose exec dev bash
   dev:
-    build: .
+    build:
+      context: .
+      network: host
     container_name: talent-matching-dev
     volumes:
       - .:/home/developer/project

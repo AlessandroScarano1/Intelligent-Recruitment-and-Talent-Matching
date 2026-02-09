@@ -29,7 +29,7 @@ DB_PATH = Path("data/feedback/feedback.db")
 # skill dictionary path
 # Use PROJECT_ROOT for proper absolute paths
 PROJECT_ROOT = Path(__file__).parent.parent.parent
-SKILL_DICT_PATH = PROJECT_ROOT / "training" / "output" / "skill_dictionary" / "all_skills"
+SKILL_DICT_PATH = PROJECT_ROOT / "ingest_job_postings" / "output" / "skill_dictionary" / "all_skills"
 
 
 def load_skill_dictionary():

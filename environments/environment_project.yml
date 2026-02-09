@@ -8,7 +8,7 @@ dependencies:
   - python=3.10
 
   # Data processing
-  - numpy
+  - numpy<2
   - pandas
   - polars
   - pyarrow
@@ -80,9 +80,6 @@ dependencies:
 
       # Experiment tracking
       - wandb
-
-      # String matching
-      - py_stringmatching
 
       # Validation
       - pydantic>=2.0

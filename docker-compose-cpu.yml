@@ -4,11 +4,12 @@ services:
   dev:
     build:
       context: .
+      network: host
       dockerfile: Dockerfile
       args:
         ENV_FILE: environments/environment_nocuda.yml
         ENV_NAME: talent_matching_nocuda
-    container_name: talent-matching-dev-cpu
+    container_name: talent-matching-dev
     volumes:
       - .:/home/developer/project
       - conda-pkgs:/opt/conda/pkgs

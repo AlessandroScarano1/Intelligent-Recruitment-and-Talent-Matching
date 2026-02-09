@@ -75,20 +75,18 @@ echo "Clearing output folders for fresh testing"
 
 rm -rf ingest_job_postings/output/*
 rm -rf training/output/*
-# keep ingest_cv/output
-# rm -rf ingest_cv/output/*
+rm -rf ingest_cv/output/*
 rm -rf demo/data/feedback/*
 
 # Recreate .gitkeep files
 touch ingest_job_postings/output/.gitkeep 2>/dev/null || true
 touch training/output/.gitkeep 2>/dev/null || true
+touch ingest_cv/output/.gitkeep 2>/dev/null || true
 touch demo/data/feedback/.gitkeep 2>/dev/null || true
 
 echo ""
 echo "Backup Completed"
 echo "Outputs backed up to: $BACKUP_DIR"
 echo "Output folders cleared (ready for fresh pipeline run)"
-echo ""
-echo "NOTE: ingest_cv/output was NOT cleared"
 echo ""
 echo "To restore: ./scripts/restore_outputs.sh"
