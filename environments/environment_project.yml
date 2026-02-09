@@ -29,7 +29,7 @@ dependencies:
 
   # Big data
   - pyspark=3.5
-  - openjdk=11    # Required for Spark
+  - openjdk=17    # Required for Spark (PySpark 3.5 needs Java 17+)
 
   # Jupyter
   - jupyter
@@ -74,7 +74,7 @@ dependencies:
       - gdown
 
       # Delta Lake
-      - delta-spark
+      - delta-spark==3.2.0
 
       # Experiment tracking
       - wandb
