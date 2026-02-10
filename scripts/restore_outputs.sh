@@ -32,6 +32,7 @@ echo ""
 echo "Clearing current outputs"
 rm -rf ingest_job_postings/output
 rm -rf training/output
+rm -rf ingest_cv/output
 rm -rf demo/data/feedback
 
 # restore from backup
@@ -51,6 +52,14 @@ if [ -d "$BACKUP_DIR/training_output" ]; then
 else
     mkdir -p training/output
     echo "  [SKIP] training/output (no backup found)"
+fi
+
+if [ -d "$BACKUP_DIR/ingest_cv_output" ]; then
+    cp -r "$BACKUP_DIR/ingest_cv_output" ingest_cv/output
+    echo "  [OK] ingest_cv/output"
+else
+    mkdir -p ingest_cv/output
+    echo "  [SKIP] ingest_cv/output (no backup found)"
 fi
 
 if [ -d "$BACKUP_DIR/demo_feedback" ]; then

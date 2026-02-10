@@ -5,7 +5,8 @@
 
 set -e  # exit on error
 
-PROJECT_ROOT="/home/developer/project"
+# detect project root from script location (works on any machine)
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_ROOT"
 
 # create output directory and log file

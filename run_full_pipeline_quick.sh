@@ -4,7 +4,8 @@
 
 set -e  # exit on error
 
-PROJECT_ROOT="/home/developer/project"
+# detect project root from script location (works on any machine)
+PROJECT_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$PROJECT_ROOT"
 
 # create output directory and log file
@@ -102,6 +103,17 @@ echo ""
 echo "[COMPLETE] Training pipeline finished (quick mode)"
 echo ""
 
+# PHASE 4: BUILD CV INDEX + RETRIEVAL VALIDATION
+
+echo ""
+echo "PHASE 4: CV INDEX + VALIDATION"
+
+run_script "demo/demo_scripts/11_retrieval_demo.py"
+
+echo ""
+echo "[COMPLETE] CV index built and retrieval validation done"
+echo ""
+
 # SUMMARY
 
 echo ""
@@ -111,6 +123,7 @@ echo "All phases completed successfully:"
 echo "  [✓] CV Ingestion (5 scripts)"
 echo "  [✓] Job Ingestion (6 scripts)"
 echo "  [✓] Training (4 scripts, quick mode)"
+echo "  [✓] CV Index + Validation (1 script)"
 echo ""
 echo "End time: $(date)"
 echo ""
@@ -122,7 +135,7 @@ echo "  - Indexes: training/output/indexes/ (quick: 10k jobs)"
 echo "  - Log file: $LOG_FILE"
 echo ""
 echo "Ready to run demo scripts:"
-echo "  python demo/demo_scripts/11_retrieval_demo.py"
+echo "  streamlit run demo/app.py"
 echo "  python demo/demo_scripts/12_interactive_matching.py"
 echo "  python demo/demo_scripts/13_recruiter_matching.py"
 echo ""
