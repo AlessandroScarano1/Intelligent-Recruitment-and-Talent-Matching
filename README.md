@@ -176,8 +176,8 @@ Docker on macOS runs a Linux VM with no GPU access. For Apple Silicon GPU accele
 # 1. Create native conda environment (faiss-cpu, no CUDA)
 conda env create -f environments/environment_nocuda.yml
 conda activate talent_matching_nocuda
-python -m spacy download en_core_web_sm
-python -m spacy download en_core_web_lg
+python -m spacy download en_core_web_sm-3.7.1
+python -m spacy download en_core_web_lg-3.7.1
 
 # 2. Run only Kafka in Docker (macOS needs platform flag)
 docker compose -f docker-compose-macos.yml up kafka -d
@@ -203,7 +203,7 @@ streamlit run demo/app.py
 **Notes:**
 - Always set `export KAFKA_BROKER=localhost:9092` before running scripts natively, since the default (`kafka-broker:29092`) only works inside the Docker network. Add it to `~/.zshrc` to make it permanent.
 - If you get a Java version error with Spark: `conda install openjdk=17`
-- spaCy models are downloaded without version pinning (e.g. `python -m spacy download en_core_web_sm`) so they auto-match the installed spaCy version
+- spaCy models must match the spaCy 3.7 library version (e.g. `en_core_web_sm-3.7.1`), same as the Dockerfile
 - All scripts automatically detect the best available device (CUDA > MPS > CPU) via the shared `get_device()` function, so no code changes are needed between platforms
 - Running the full pipeline inside Docker on a 16GB MacBook will likely cause Spark OOM errors. Native execution is recommended.
 - After Kafka ingestion completes, Docker can be stopped to free memory for the heavier pipeline stages
