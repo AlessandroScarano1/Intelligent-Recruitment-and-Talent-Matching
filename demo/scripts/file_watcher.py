@@ -129,7 +129,7 @@ class FileWatcher:
         try:
             from confluent_kafka import Producer
             self.producer = Producer({
-                'bootstrap.servers': 'localhost:9092',
+                'bootstrap.servers': os.environ.get('KAFKA_BROKER', 'localhost:9092'),
                 'client.id': 'file_watcher'
             })
             logger.info("Kafka producer initialized")

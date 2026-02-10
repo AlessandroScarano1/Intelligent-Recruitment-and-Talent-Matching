@@ -70,7 +70,7 @@ total_count = jobs_df.count()
 
 print(f'\nLoaded {total_count:,} job postings')
 print('\nRecords by source:')
-jobs_df.groupBy('source').count().show()
+jobs_df.groupBy('source').count().show(10)
 
 # %%
 # load ground-truth skills
@@ -140,7 +140,7 @@ all_jobs = all_jobs.withColumn(
 all_jobs.createOrReplaceTempView('jobs')
 
 print('\nSeniority distribution (extracted from job titles):')
-all_jobs.groupBy('seniority').count().orderBy(col('count').desc()).show()
+all_jobs.groupBy('seniority').count().orderBy(col('count').desc()).show(10)
 
 # %%
 # sample with skills
