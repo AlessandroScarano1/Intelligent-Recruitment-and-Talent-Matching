@@ -16,10 +16,10 @@ sys.path.insert(0, PROJECT_ROOT)
 parser = argparse.ArgumentParser(description='Train bi-encoder for CV-job matching')
 parser.add_argument('--quick', action='store_true',
                     help='Quick mode: single training run with best hyperparams')
-parser.add_argument('--lr', type=float, default=5e-05,
-                    help='Learning rate for quick mode (default: 5e-05)')
-parser.add_argument('--warmup', type=float, default=0.05,
-                    help='Warmup ratio for quick mode (default: 0.05)')
+parser.add_argument('--lr', type=float, default=1e-05,
+                    help='Learning rate for quick mode (default: 1e-05)')
+parser.add_argument('--warmup', type=float, default=0.1,
+                    help='Warmup ratio for quick mode (default: 0.1)')
 parser.add_argument('--wandb', action='store_true',
                     help='Enable Weights & Biases logging (disabled by default)')
 args = parser.parse_args()

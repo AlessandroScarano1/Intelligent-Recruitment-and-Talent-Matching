@@ -75,7 +75,7 @@ Data Sources -> Kafka Ingestion -> Spark Processing -> GPU Encoding
 - Docker and Docker Compose
 - 40GB+ disk space for datasets and models
 - For GPU acceleration: NVIDIA GPU with CUDA support and `nvidia-container-toolkit`
-- For macOS: Apple Silicon with MPS support (M1/M2/M3/M4/M5)
+- For macOS: Apple Silicon with MPS support (M1/M2/M3)
 
 ## Download Data
 
@@ -168,7 +168,7 @@ streamlit run demo/app.py --server.address 0.0.0.0
 
 ## Option C: macOS with Apple Silicon (MPS acceleration)
 
-Docker on macOS runs a Linux VM with no GPU access. For Apple Silicon GPU acceleration (MPS), install the environment natively and only use Docker only for Kafka.
+Docker on macOS runs a Linux VM with no GPU access. For Apple Silicon GPU acceleration (MPS), install the environment natively and only use Docker for Kafka.
 
 **compose-macos vs compose-cpu:** The macOS compose file adds `platform: linux/amd64` to force x86 emulation via Rosetta on Apple Silicon. Without it, Docker would try to pull ARM64 images which may not exist for all services (e.g. Kafka). On a Linux machine without GPU, use `compose-cpu` instead.
 
@@ -212,10 +212,11 @@ streamlit run demo/app.py
 
 # Pipeline Stages
 
-Two bash scripts are available to run the full pipeline:
+Three bash scripts are available to run the pipeline:
 
-- **`run_full_pipeline.sh`** - runs all 4 phases with full hyperparameter sweep and builds the full 1.35M job index (~35 min on GPU). **Required for the demo.**
-- **`run_pipeline_quick_train.sh`** - same 4 phases but uses `--quick` flags: single training run (best config lr=1e-5, warmup=0.1) instead of 6-config sweep, and builds a 10K sample index. Good for verifying the pipeline works end-to-end, but the quick index is too small for the demo.
+- **`run_full_pipeline.sh`** - runs all 4 phases with full 6-config hyperparameter sweep and builds the full 1.35M job index (~35 min on GPU).
+- **`run_pipeline_quick_train.sh`** - same 4 phases but with a single training run (best config lr=1e-5, warmup=0.1) instead of the full sweep, **still builds the full 1.35M job index**. This is the recommended script for reproducing the pipeline, as it produces the same final result while skipping redundant training configurations.
+- **`run_full_pipeline_quick.sh`** - same 4 phases with `--quick` flags: single training run, builds index from 10K sampled jobs. Good for verifying the pipeline flow works end-to-end, but the quick index is too small for the demo.
 
 ## Phase 1: CV Ingestion (Scripts 01-05)
 - Kafka ingestion: 4,817 CVs from HuggingFace JSONL
@@ -300,18 +301,16 @@ python demo/scripts/file_watcher.py --kafka   # with Kafka publishing
 
 # Key Technologies
 
-| Component | Technology | Purpose |
-|-----------|------------|---------|
-| Message Broker | Apache Kafka (KRaft) | Scalable data ingestion |
-| Processing | PySpark 3.5.5 | Distributed data processing |
-| NLP | spaCy + PhraseMatcher | Skill extraction |
-| Embeddings | E5-base-v2 (fine-tuned) | Semantic representations |
-| Training | Sentence-Transformers | Model fine-tuning |
-| Vector Search | FAISS IndexFlatIP | Fast similarity search |
-| Reranking | MS MARCO Cross-Encoder | Precision improvement |
-| Feedback | SQLite (WAL mode) | User feedback storage |
-| Web UI | Streamlit 1.54.0 | Interactive matching interface |
-| File Monitoring | Watchdog | Real-time document ingestion |
+- **Apache Kafka (KRaft)** - scalable data ingestion
+- **PySpark 3.5.5** - distributed data processing
+- **spaCy + PhraseMatcher** - NLP skill extraction
+- **E5-base-v2 (fine-tuned)** - semantic embeddings (768D vectors)
+- **Sentence-Transformers** - model fine-tuning
+- **FAISS IndexFlatIP** - fast vector similarity search
+- **MS MARCO Cross-Encoder** - reranking for precision
+- **SQLite (WAL mode)** - user feedback storage
+- **Streamlit** - interactive web UI
+- **Watchdog** - real-time document ingestion
 
 ---
 
