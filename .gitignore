@@ -4,6 +4,9 @@
 encoders/__init__.py
 /old_embeddings/
 
+.DS_Store 
+
+# macOS folder settings file
 
 # byte-compiled / optimized / dll files
 __pycache__/
