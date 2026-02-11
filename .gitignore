@@ -211,3 +211,8 @@ trained_biencoders/model.safetensors
 
 # temp files
 evaluation_results.json
+
+
+# raw data CVs 
+
+ingest_cv/raw_data/
