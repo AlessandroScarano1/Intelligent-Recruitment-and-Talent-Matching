@@ -1,6 +1,6 @@
 # Intelligent Recruitment and Talent Matching System
 
-A scalable end-to-end big data system for semantic job-CV matching using bi-encoder retrieval and cross-encoder reranking, processing 1.35M job postings and achieving 79.42% Recall@50. Includes Kafka ingestion, Spark NLP processing, GPU-accelerated encoding, FAISS vector search, and interactive user interfaces with feedback-driven continuous learning.
+A scalable end-to-end big data system for semantic job-CV matching using bi-encoder retrieval and cross-encoder reranking, processing 1.35M job postings and achieving 82.33% Recall@50. Includes Kafka ingestion, Spark NLP processing, GPU-accelerated encoding, FAISS vector search, and interactive user interfaces with feedback-driven continuous learning.
 
 # Project Overview
 
@@ -11,10 +11,10 @@ This system implements a semantic search engine for matching job seekers with re
 - Real-world scale: 1.35M job postings, 4.8K CVs
 
 # Key Results
-- Recall@50: 79.42% | Recall@10: 53.91% | Recall@1: 14.77%
-- TF-IDF baseline comparison: bi-encoder outperforms TF-IDF by 1.3-2.0x across all Recall@K
-- Throughput: 2,320 encodings/sec on RTX 3090
-- Query latency: 246ms for top-50 retrieval (1.35M vectors)
+- Recall@50: 82.33% | Recall@10: 55.03% | Recall@1: 15.21%
+- TF-IDF baseline comparison: bi-encoder outperforms TF-IDF by 1.4-2.1x across all Recall@K
+- Throughput: ~2,450 encodings/sec on RTX 3090
+- Query latency: <100ms for top-50 retrieval (1.35M vectors, nprobe=20)
 
 ---
 
@@ -214,7 +214,7 @@ streamlit run demo/app.py
 
 Three bash scripts are available to run the pipeline:
 
-- **`run_full_pipeline.sh`** - runs all 4 phases with full 6-config hyperparameter sweep and builds the full 1.35M job index (~35 min on GPU).
+- **`run_full_pipeline.sh`** - runs all 4 phases with full 6-config hyperparameter sweep and builds the full 1.35M job index (~35 min on GPU with sweep, ~25 min with quick train).
 - **`run_pipeline_quick_train.sh`** - same 4 phases but with a single training run (best config lr=1e-5, warmup=0.1) instead of the full sweep, **still builds the full 1.35M job index**. This is the recommended script for reproducing the pipeline, as it produces the same final result while skipping redundant training configurations.
 - **`run_full_pipeline_quick.sh`** - same 4 phases with `--quick` flags: single training run, builds index from 10K sampled jobs. Good for verifying the pipeline flow works end-to-end, but the quick index is too small for the demo.
 
@@ -224,16 +224,16 @@ Three bash scripts are available to run the pipeline:
 - Train/val/test splits for CV IDs
 
 ## Phase 2: Job Ingestion (Scripts 01-06)
-- Kafka ingestion: 1.35M jobs in 41s (33K msg/sec)
-- Spark processing: JOIN skills + filter (46s)
-- spaCy NLP: Extract skills from Indeed/Glassdoor (16s)
+- Kafka ingestion: 1.35M jobs (~39K msg/sec producer, ~80s total)
+- Spark processing: JOIN skills + filter (40s)
+- spaCy NLP: Extract skills from Indeed/Glassdoor (14s)
 
 ## Phase 3: Training + Job Index (Scripts 07-10)
 - Data preparation: Train/val/test splits (80/10/10, stratified by ISCO-08)
 - Fine-tuning: E5 model with MNR + Matryoshka loss
-- Hyperparameters: LR=1e-05, Batch=64, Epochs=10
-- Results: Val_Loss=0.528, Recall@50=79.42%
-- Re-encode ALL 1.35M jobs with fine-tuned model (9.3 min)
+- Hyperparameters: LR=1e-05, Batch=64, Warmup=0.1
+- Results: Val_Loss=0.545, Recall@50=82.33%
+- Re-encode ALL 1.35M jobs with fine-tuned model (9.2 min)
 - Output: jobs_full_index.faiss (~4.1GB, 1.35M vectors x 768 dimensions)
 
 ## Phase 4: CV Index + Validation (Script 11)
@@ -317,26 +317,27 @@ python demo/scripts/file_watcher.py --kafka   # with Kafka publishing
 # Performance Benchmarks
 
 ## Throughput
-- Kafka: 33,000 msg/sec (producer)
-- Spark: 29,300 jobs/sec (JOIN operations)
-- GPU Encoding: 2,320 jobs/sec (RTX 3090, fp16)
+- Kafka: ~39,000 msg/sec (producer)
+- Spark: ~34,000 jobs/sec (JOIN operations)
+- GPU Encoding: ~2,450 jobs/sec (RTX 3090, fp16)
 
 ## Retrieval Quality (447 validation pairs)
-- Recall@1: 14.77% (66/447)
-- Recall@10: 53.91% (241/447)
-- Recall@50: 79.42% (355/447)
+- Recall@1: 15.21% (68/447)
+- Recall@5: 44.74% (200/447)
+- Recall@10: 55.03% (246/447)
+- Recall@50: 82.33% (368/447)
 
 ## TF-IDF Baseline Comparison (same 447 pairs)
 | Metric | TF-IDF | Bi-encoder | Improvement |
 |--------|--------|------------|-------------|
-| Recall@1 | 9.17% | 14.77% | 1.6x |
-| Recall@5 | 21.70% | 43.18% | 2.0x |
-| Recall@10 | 31.32% | 53.91% | 1.7x |
-| Recall@50 | 59.73% | 79.42% | 1.3x |
+| Recall@1 | 9.17% | 15.21% | 1.7x |
+| Recall@5 | 21.70% | 44.74% | 2.1x |
+| Recall@10 | 31.32% | 55.03% | 1.8x |
+| Recall@50 | 59.73% | 82.33% | 1.4x |
 
-## Latency (1.35M vector index)
-- Bi-encoder retrieval: 246ms (top-50)
-- Cross-encoder reranking: 104ms (top-30)
+## Latency (1.35M vector index, IndexIVFFlat, nprobe=20)
+- FAISS search: ~1ms (top-50)
+- Cross-encoder reranking: ~100ms (top-30)
 
 ---
 
